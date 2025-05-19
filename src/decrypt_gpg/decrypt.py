@@ -3,6 +3,7 @@ import gzip
 import shutil
 import subprocess
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from getpass import getpass
 from pathlib import Path
 from sys import exit
@@ -25,13 +26,10 @@ def decrypt_gpg_file(src: Path, dest: Path, password: str) -> None:
     try:
         with open(dest, "wb") as out_file:
             subprocess.run(
-                [
-                    "gpg", "--ignore-mdc-error", "--batch", "-qd",
-                    "--passphrase", password, str(src)
-                ],
+                ["gpg", "--ignore-mdc-error", "--batch", "-qd", "--passphrase", password, str(src)],
                 stdout=out_file,
                 stderr=subprocess.PIPE,
-                check=True
+                check=True,
             )
     except subprocess.CalledProcessError as e:
         print(f"\nError decrypting {src}:\n{e.stderr.decode()}")
@@ -40,10 +38,10 @@ def decrypt_gpg_file(src: Path, dest: Path, password: str) -> None:
 
 def extract_gz(file_path: Path) -> None:
     """Decompress a .gz file using Python's gzip module."""
-    output_path = file_path.with_suffix('')  # Remove .gz
+    output_path = file_path.with_suffix("")  # Remove .gz
     try:
-        with gzip.open(file_path, 'rb') as f_in:
-            with open(output_path, 'wb') as f_out:
+        with gzip.open(file_path, "rb") as f_in:
+            with open(output_path, "wb") as f_out:
                 shutil.copyfileobj(f_in, f_out)
         file_path.unlink()
     except OSError as e:
@@ -77,8 +75,14 @@ def process_file(entry, password, target_dir):
         shutil.copy2(entry, target_path)
 
     handle_archive(target_path, target_dir)
-
     print(".", end="", flush=True)
+
+
+def process_files(files: List[Path], target_dir: Path, password: str) -> None:
+    with ThreadPoolExecutor() as executor:
+        futures = [executor.submit(process_file, file_entry, password, target_dir) for file_entry in files]
+        for future in as_completed(futures):
+            future.result()  # will raise exception if one occurred
 
 
 def recurse(src_dir: Path, dec_root: Path, password: str) -> None:
@@ -91,14 +95,17 @@ def recurse(src_dir: Path, dec_root: Path, password: str) -> None:
     target_dir = dec_root / src_dir
     target_dir.mkdir(parents=True, exist_ok=True)
 
-    entries = sorted([entry for entry in src_dir.iterdir() if not entry.name.startswith('.')])
+    entries = sorted([entry for entry in src_dir.iterdir() if not entry.name.startswith(".")])
     subdirs: List[Path] = []
+    files: List[Path] = []
 
     for entry in entries:
         if entry.is_dir():
             subdirs.append(entry)
-            continue
-        process_file(entry, password, target_dir)
+        else:
+            files.append(entry)
+
+    process_files(files, target_dir, password)
 
     for subdir in subdirs:
         print()
@@ -108,8 +115,9 @@ def recurse(src_dir: Path, dec_root: Path, password: str) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Recursively decrypt and extract GPG-encrypted archives.")
     parser.add_argument("base_dir", type=Path, help="Base directory to process")
-    parser.add_argument("--output", type=Path, default=default_output_path,
-                        help="Output directory (default: decrypted)")
+    parser.add_argument(
+        "--output", type=Path, default=default_output_path, help="Output directory (default: decrypted)"
+    )
     args = parser.parse_args()
 
     base_dir = Path(args.base_dir)
