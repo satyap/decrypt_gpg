@@ -62,7 +62,7 @@ def traverse(src, tgt, fn):
     execs = {}
     cpus = cpu_count()
     with concurrent.futures.ThreadPoolExecutor(max_workers=cpus) as executor:
-        for (dirpath, _dirnames, filenames) in walk(src):
+        for dirpath, _dirnames, filenames in walk(src):
             for fname in filenames:
                 s = abspath(join(dirpath, fname))
                 r = relpath(s, abspath(src))
@@ -76,13 +76,14 @@ def traverse(src, tgt, fn):
 
 
 def log(msg):
-    d = DRYRUN_STR if args.dryrun else ''
+    d = DRYRUN_STR if args.dryrun else ""
     print(f"{d}{msg}")
 
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Copy decrypted files to destination"
-                                                 " without deleting existing files that are identical")
+def main():
+    parser = argparse.ArgumentParser(
+        description="Copy decrypted files to destination" " without deleting existing files that are identical"
+    )
 
     parser.add_argument("start")
     parser.add_argument("target")
@@ -96,3 +97,7 @@ if __name__ == "__main__":
         traverse(args.start, args.target, copy_if_needed)
     if args.delete:
         traverse(args.target, args.start, delete_if_not_exists)
+
+
+if __name__ == "__main__":
+    main()

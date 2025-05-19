@@ -30,7 +30,7 @@ Homepage = "https://github.com/satyap/decrypt_gpg.git"
 
 [project.scripts]
 decrypt-gpg = "decrypt_gpg.decrypt:main"
-#copy-usb = "decrypt_gpg:copy.main"
+sync-usb = "decrypt_gpg:sync.main"
 
 # Build
 
