@@ -12,30 +12,6 @@ from typing import List
 default_output_path = Path("decrypted")
 
 
-def prompt_for_password() -> str:
-    """Securely prompt for the GPG password."""
-    try:
-        return getpass("GPG password: ")
-    except KeyboardInterrupt:
-        print("\n")
-        exit(1)
-
-
-def decrypt_gpg_file(src: Path, dest: Path, password: str) -> None:
-    """Decrypt a .gpg file to dest using GPG and the provided passphrase."""
-    try:
-        with open(dest, "wb") as out_file:
-            subprocess.run(
-                ["gpg", "--ignore-mdc-error", "--batch", "-qd", "--passphrase", password, str(src)],
-                stdout=out_file,
-                stderr=subprocess.PIPE,
-                check=True,
-            )
-    except subprocess.CalledProcessError as e:
-        print(f"\nError decrypting {src}:\n{e.stderr.decode()}")
-        exit(1)
-
-
 def extract_gz(file_path: Path) -> None:
     """Decompress a .gz file using Python's gzip module."""
     output_path = file_path.with_suffix("")  # Remove .gz
@@ -63,53 +39,79 @@ def handle_archive(file_path: Path, working_dir: Path) -> None:
         extract_gz(file_path)
 
 
-def process_file(entry: Path, password: str, target_dir: Path) -> None:
-    filename = entry.name
-    target_path = target_dir / filename
-    if filename.endswith(".gpg"):
-        decrypted_filename = filename[:-4]
-        decrypted_path = target_dir / decrypted_filename
-        decrypt_gpg_file(entry, decrypted_path, password)
-        target_path = decrypted_path
-    else:
-        shutil.copy2(entry, target_path)
+class Decryptor:
+    def __init__(self, password: str = ""):
+        self.password = password
+        if not password:
+            self.prompt_for_password()
 
-    handle_archive(target_path, target_dir)
-    print(".", end="", flush=True)
+    def prompt_for_password(self) -> None:
+        """Securely prompt for the GPG password."""
+        try:
+            self.password = getpass("GPG password: ")
+        except KeyboardInterrupt:
+            print("\n")
+            exit(1)
 
+    def decrypt_gpg_file(self, src: Path, dest: Path) -> None:
+        """Decrypt a .gpg file to dest using GPG and the provided passphrase."""
+        try:
+            with open(dest, "wb") as out_file:
+                subprocess.run(
+                    ["gpg", "--ignore-mdc-error", "--batch", "-qd", "--passphrase", self.password, str(src)],
+                    stdout=out_file,
+                    stderr=subprocess.PIPE,
+                    check=True,
+                )
+        except subprocess.CalledProcessError as e:
+            print(f"\nError decrypting {src}:\n{e.stderr.decode()}")
+            exit(1)
 
-def process_files(files: List[Path], target_dir: Path, password: str) -> None:
-    with ThreadPoolExecutor() as executor:
-        futures = [executor.submit(process_file, file_entry, password, target_dir) for file_entry in files]
-        for future in as_completed(futures):
-            future.result()  # will raise exception if one occurred
-
-
-def recurse(src_dir: Path, dec_root: Path, password: str) -> None:
-    """Recursively process and decrypt/copy/extract files from the directory."""
-    print(src_dir, end="")
-    if not src_dir.is_dir():
-        print(f"\nSkipping non-directory: {src_dir}")
-        return
-
-    target_dir = dec_root / src_dir
-    target_dir.mkdir(parents=True, exist_ok=True)
-
-    entries = sorted([entry for entry in src_dir.iterdir() if not entry.name.startswith(".")])
-    subdirs: List[Path] = []
-    files: List[Path] = []
-
-    for entry in entries:
-        if entry.is_dir():
-            subdirs.append(entry)
+    def process_file(self, entry: Path, target_dir: Path) -> None:
+        filename = entry.name
+        target_path = target_dir / filename
+        if filename.endswith(".gpg"):
+            decrypted_filename = filename[:-4]
+            decrypted_path = target_dir / decrypted_filename
+            self.decrypt_gpg_file(entry, decrypted_path)
+            target_path = decrypted_path
         else:
-            files.append(entry)
+            shutil.copy2(entry, target_path)
 
-    process_files(files, target_dir, password)
+        handle_archive(target_path, target_dir)
+        print(".", end="", flush=True)
 
-    for subdir in subdirs:
-        print()
-        recurse(subdir, dec_root, password)
+    def process_files(self, files: List[Path], target_dir: Path) -> None:
+        with ThreadPoolExecutor() as executor:
+            futures = [executor.submit(self.process_file, file_entry, target_dir) for file_entry in files]
+            for future in as_completed(futures):
+                future.result()  # will raise exception if one occurred
+
+    def recurse(self, src_dir: Path, dec_root: Path) -> None:
+        """Recursively process and decrypt/copy/extract files from the directory."""
+        print(src_dir, end="")
+        if not src_dir.is_dir():
+            print(f"\nSkipping non-directory: {src_dir}")
+            return
+
+        target_dir = dec_root / src_dir
+        target_dir.mkdir(parents=True, exist_ok=True)
+
+        entries = sorted([entry for entry in src_dir.iterdir() if not entry.name.startswith(".")])
+        subdirs: List[Path] = []
+        files: List[Path] = []
+
+        for entry in entries:
+            if entry.is_dir():
+                subdirs.append(entry)
+            else:
+                files.append(entry)
+
+        self.process_files(files, target_dir)
+
+        for subdir in subdirs:
+            print()
+            self.recurse(subdir, dec_root)
 
 
 def main() -> None:
@@ -125,12 +127,12 @@ def main() -> None:
         print(f"Error: '{base_dir}' is not a valid directory.")
         exit(1)
 
-    password = prompt_for_password()
+    decrypt = Decryptor()
 
     args.output.mkdir(exist_ok=True)
 
     start_time = time.time()
-    recurse(base_dir, args.output, password)
+    decrypt.recurse(base_dir, args.output)
     elapsed = time.time() - start_time
     print(f"\ntook {elapsed:.2f} seconds")
 

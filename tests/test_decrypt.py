@@ -5,8 +5,8 @@ from unittest import mock
 
 import pytest
 
-from decrypt_gpg.decrypt import extract_gz, handle_archive, process_file, decrypt_gpg_file, process_files, main
-from decrypt_gpg.decrypt import recurse
+import decrypt_gpg.decrypt
+from decrypt_gpg.decrypt import extract_gz, handle_archive, Decryptor, main
 
 
 @pytest.fixture
@@ -34,8 +34,9 @@ def test_recurse_calls_process_files(tmp_path: Path) -> None:
     output_dir = tmp_path / "out"
 
     # Patch process_files to check call behavior
-    with mock.patch("decrypt_gpg.decrypt.process_files") as mock_process:
-        recurse(base_dir, output_dir, "fake pass")
+    decrypt = Decryptor("fake pass")
+    with mock.patch.object(decrypt, "process_files") as mock_process:
+        decrypt.recurse(base_dir, output_dir)
 
         # Check that process_files was called twice:
         # once for base, once for subdir
@@ -55,16 +56,17 @@ def test_process_files_calls_process_file(tmp_path: Path) -> None:
     target_dir.mkdir()
 
     # Mock process_file
-    with mock.patch("decrypt_gpg.decrypt.process_file") as mock_process:
-        process_files(files, target_dir, password="fake pass")
+    decrypt = Decryptor("fake pass")
+    with mock.patch.object(decrypt, "process_file") as mock_process:
+        decrypt.process_files(files, target_dir)
 
         # Verify process_file called for each file
         assert mock_process.call_count == len(files)
 
         # Check calls individually (optional)
         expected_calls = [
-            mock.call(file1, "fake pass", target_dir),
-            mock.call(file2, "fake pass", target_dir),
+            mock.call(file1, target_dir),
+            mock.call(file2, target_dir),
         ]
         mock_process.assert_has_calls(expected_calls, any_order=True)
 
@@ -80,7 +82,8 @@ def test_process_file_copies_file(tmp_path: Path) -> None:
     target_dir.mkdir()
 
     # Run the function
-    process_file(source_file, password="fake pass", target_dir=target_dir)
+    decrypt = Decryptor("fake pass")
+    decrypt.process_file(source_file, target_dir=target_dir)
 
     # Check that the file was copied
     copied_file = target_dir / "original.txt"
@@ -116,11 +119,12 @@ def test_handle_archive_gz(tmp_path: Path) -> None:
 
 def test_decrypt_gpg_file_runs(tmp_path: Path) -> None:
     input_file = tmp_path / "file.gpg"
-    input_file.write_text("fakegpgdata")
+    input_file.write_text("fake gpg data")
     output_file = tmp_path / "file"
 
+    decrypt = Decryptor("fake pass")
     with mock.patch("subprocess.run") as mock_run:
-        decrypt_gpg_file(input_file, output_file, "fake pass")
+        decrypt.decrypt_gpg_file(input_file, output_file)
         assert mock_run.called
         assert output_file.exists()  # File is opened before subprocess
 
@@ -129,11 +133,12 @@ def test_process_file_decrypt_and_handle(tmp_path: Path) -> None:
     gpg_file = tmp_path / "data.txt.gpg"
     gpg_file.write_text("secret")
 
+    decrypt = Decryptor("fake pass")
     with (
-        mock.patch("decrypt_gpg.decrypt.decrypt_gpg_file") as mock_decrypt,
+        mock.patch.object(decrypt, "decrypt_gpg_file") as mock_decrypt,
         mock.patch("decrypt_gpg.decrypt.handle_archive") as mock_archive,
     ):
-        process_file(gpg_file, "password", tmp_path)
+        decrypt.process_file(gpg_file, tmp_path)
         mock_decrypt.assert_called_once()
         mock_archive.assert_called_once()
 
@@ -147,12 +152,11 @@ def test_main_success(tmp_path: Path) -> None:
 
     with (
         mock.patch.object(sys, "argv", test_args),
-        mock.patch("decrypt_gpg.decrypt.prompt_for_password", return_value="fake pass"),
-        mock.patch("decrypt_gpg.decrypt.recurse") as mock_recurse,
+        mock.patch("decrypt_gpg.decrypt.Decryptor") as mock_decryptor,
     ):
         main()
         assert output_dir.exists()
-        mock_recurse.assert_called_once_with(base_dir, output_dir, "fake pass")
+        mock_decryptor.return_value.recurse.assert_called_once_with(base_dir, output_dir)
 
 
 def test_main_invalid_input_does_not_call_recurse(tmp_path: Path) -> None:
@@ -162,10 +166,9 @@ def test_main_invalid_input_does_not_call_recurse(tmp_path: Path) -> None:
 
     with (
         mock.patch.object(sys, "argv", test_args),
-        mock.patch("decrypt_gpg.decrypt.prompt_for_password") as mock_password,
-        mock.patch("decrypt_gpg.decrypt.recurse") as mock_recurse,
+        mock.patch("decrypt_gpg.decrypt.Decryptor") as mock_decryptor,
     ):
         with pytest.raises(SystemExit) as exc_info:
             main()
-        mock_password.assert_not_called()
-        mock_recurse.assert_not_called()
+        mock_decryptor.assert_not_called()
+        mock_decryptor.return_value.recurse.assert_not_called()
