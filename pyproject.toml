@@ -1,0 +1,87 @@
+# General
+
+[project]
+name = "decrypt_gpg"
+version = "0.1.0"
+description = "Decrypt a tree of gpg files and tarballs"
+readme = "README.md"
+license-files = [ "LICENSE", "LICENSE-human.txt" ]
+authors = [
+  { name = "Your Name", email = "you@example.com" }
+]
+requires-python = ">=3.10"
+dependencies = [
+]
+
+[project.optional-dependencies]
+testing = [
+  "black",
+  "coverage",
+  "mypy",
+  "pytest",
+]
+build = [
+  "setuptools",
+  "wheel",
+]
+
+[project.urls]
+Homepage = "https://github.com/satyap/decrypt_gpg.git"
+
+[project.scripts]
+decrypt-gpg = "decrypt_gpg:decrypt:main"
+copy-usb = "decrypt_gpg:copy.main"
+
+# Build
+
+[build-system]
+# Build system configuration (PEP 518)
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+# Tools
+
+[tool.black]
+line-length = 120
+target-version = ["py310"]
+exclude = '''
+/(
+  | \.git
+  | __pycache__
+  | build
+  | dist
+)/
+'''
+
+[tool.mypy]
+python_version = "3.10"
+check_untyped_defs = true
+disallow_untyped_defs = true
+ignore_missing_imports = true
+strict_optional = true
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "-ra -q"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+
+[tool.coverage.run]
+branch = true
+source = ["src"]
+
+[tool.coverage.report]
+show_missing = true
+fail_under = 25
+exclude_lines = [
+  "pragma: no cover",
+  "if __name__ == .__main__.:",
+  "if TYPE_CHECKING:",
+]
+
