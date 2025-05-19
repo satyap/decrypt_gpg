@@ -63,7 +63,7 @@ def handle_archive(file_path: Path, working_dir: Path) -> None:
         extract_gz(file_path)
 
 
-def process_file(entry, password, target_dir):
+def process_file(entry: Path, password: str, target_dir: Path) -> None:
     filename = entry.name
     target_path = target_dir / filename
     if filename.endswith(".gpg"):
