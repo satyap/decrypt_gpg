@@ -19,6 +19,7 @@ testing = [
   "coverage",
   "mypy",
   "pytest",
+  "pytest-mock",
 ]
 build = [
   "setuptools",

@@ -38,7 +38,7 @@ test: $(VENV_DIR)/bin/activate
 
 # Run coverage with pytest
 coverage: $(VENV_DIR)/bin/activate
-	$(PYTHON) -m coverage run -m pytest
+	$(PYTHON) -m coverage run -m pytest --doctest-modules
 	$(PYTHON) -m coverage report
 
 # Build the package
