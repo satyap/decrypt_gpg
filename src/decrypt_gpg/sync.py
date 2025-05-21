@@ -139,7 +139,7 @@ def get_args() -> MyArgs:
     return MyArgs(**vars(a))
 
 
-def main() -> None:
+def run() -> None:
     global args
     if not args.start or not args.target:
         print("Needs start and target locations")
@@ -158,7 +158,12 @@ def main() -> None:
         traverse_for_delete(start, target)
 
 
+def main() -> None:
+    global args
+    args = get_args()
+    run()
+
+
 args = MyArgs()
 if __name__ == "__main__":
-    args = get_args()
     main()

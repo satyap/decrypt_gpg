@@ -58,7 +58,7 @@ def dest_dir_tree(tmp_path: Path) -> None:
 
 def test_traverse_for_copy(tmp_path: Path, mock_copy: MagicMock, mock_delete: MagicMock) -> None:
     decrypt_gpg.sync.args.copy = True
-    decrypt_gpg.sync.main()
+    decrypt_gpg.sync.run()
 
     assert mock_copy.call_count == 4
     mock_copy.assert_has_calls(
@@ -76,7 +76,7 @@ def test_traverse_for_copy(tmp_path: Path, mock_copy: MagicMock, mock_delete: Ma
 def test_traverse_for_delete(tmp_path: Path, dest_dir_tree: None, mock_delete: MagicMock) -> None:
     decrypt_gpg.sync.args.copy = True  # copy the files from source to dest first
     decrypt_gpg.sync.args.delete = True
-    decrypt_gpg.sync.main()
+    decrypt_gpg.sync.run()
 
     assert mock_delete.call_count == 5
     mock_delete.assert_has_calls(
