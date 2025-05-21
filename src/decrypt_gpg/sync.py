@@ -58,18 +58,18 @@ def delete_if_not_exists(dest: Path, src: Path) -> None:
 
 
 def traverse_for_copy(src: Path, tgt: Path) -> None:
-    execs = {}
+    execs = []
     cpus = get_cpu_count()
     with concurrent.futures.ThreadPoolExecutor(max_workers=cpus) as executor:
         for dirpath, _dirnames, filenames in walk(src):
             for fname in filenames:
                 s = Path(dirpath) / fname
                 r = (tgt / s.relative_to(src.parent)).resolve()
-                execs[executor.submit(copy_if_needed, s, r)] = s
+                execs.append(executor.submit(copy_if_needed, s, r))
                 if len(execs) > cpus * 3:
                     for e in concurrent.futures.as_completed(execs):
                         e.result()
-                        del execs[e]
+                    execs = []
         for e in concurrent.futures.as_completed(execs):
             e.result()
 
@@ -87,7 +87,7 @@ def get_filepath_in_source(src: Path, dest: Path, subdir: Path) -> Path:
 
 
 def traverse_for_delete(src: Path, dest: Path) -> None:
-    execs = {}
+    execs = []
     cpus = get_cpu_count()
     with concurrent.futures.ThreadPoolExecutor(max_workers=cpus) as executor:
         for dirpath, _dirnames, filenames in walk(dest):
@@ -96,13 +96,12 @@ def traverse_for_delete(src: Path, dest: Path) -> None:
                 try:
                     s = get_filepath_in_source(src, dest, Path(dirpath)) / fname
                 except ValueError as exc:
-                    log(str(exc))
                     continue
-                execs[executor.submit(delete_if_not_exists, src=s, dest=r)] = s
+                execs.append(executor.submit(delete_if_not_exists, src=s, dest=r))
                 if len(execs) > cpus * 3:
                     for e in concurrent.futures.as_completed(execs):
                         e.result()
-                        del execs[e]
+                    execs = []
         for e in concurrent.futures.as_completed(execs):
             e.result()
 
